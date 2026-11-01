@@ -28,6 +28,10 @@ mcp.config.json ──► scan ──► SQLite (servers, tools, token counts)
 2. **rewrite** sends each tool's description and parameter descriptions to the compressor, merges the result into a copy of the schema, and verifies the structure. If the rewrite is not smaller, the original is kept.
 3. **report** aggregates per-tool and per-server totals into `report.json`.
 
+## Demo 
+
+> 📸 ![Sample output](mcptax.png)
+
 ## Quick start
 
 Requirements: Python 3.10+. Node is only needed if your own config launches `npx` servers.
