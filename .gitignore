@@ -1,0 +1,7 @@
+.env
+*.db
+dashboard/report.json
+__pycache__/
+*.egg-info/
+.venv/
+.pytest_cache/

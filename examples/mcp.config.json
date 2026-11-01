@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "demo-tools": {
+      "command": "python",
+      "args": ["examples/demo_server.py"]
+    }
+  }
+}

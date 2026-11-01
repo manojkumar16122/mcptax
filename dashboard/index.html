@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcptax dashboard</title>
+<style>
+  :root {
+    --bg: #0f1115; --card: #171a21; --text: #e6e8ee; --muted: #8b93a7;
+    --border: #262b36; --orig: #64748b; --comp: #22c55e; --accent: #38bdf8;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f6f7f9; --card: #ffffff; --text: #111827; --muted: #6b7280;
+            --border: #e5e7eb; --orig: #94a3b8; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         background: var(--bg); color: var(--text); }
+  main { max-width: 1000px; margin: 0 auto; padding: 32px 20px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin-bottom: 20px; font-size: 14px; }
+  .toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 20px; }
+  .toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .toggle button { background: var(--card); color: var(--muted); border: 0; padding: 7px 14px;
+                   cursor: pointer; font: inherit; }
+  .toggle button.active { background: var(--accent); color: #04121c; font-weight: 600; }
+  input[type=file] { color: var(--muted); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+           gap: 12px; margin-bottom: 24px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .card .label { color: var(--muted); font-size: 13px; }
+  .card .value { font-size: 26px; font-weight: 600; margin-top: 4px; }
+  .server { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+            padding: 16px; margin-bottom: 14px; }
+  .server header { display: flex; justify-content: space-between; align-items: baseline;
+                   gap: 12px; flex-wrap: wrap; }
+  .server h2 { font-size: 17px; margin: 0; }
+  .bar { height: 10px; border-radius: 99px; background: var(--border); overflow: hidden; margin: 12px 0 4px; }
+  .bar span { display: block; height: 100%; background: var(--comp); transition: width .35s ease; }
+  .bar.original span { background: var(--orig); }
+  .pill { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: rgba(34,197,94,.15);
+          color: var(--comp); font-weight: 600; }
+  .muted { color: var(--muted); font-size: 13px; }
+  details { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 8px; }
+  summary { cursor: pointer; display: flex; justify-content: space-between; gap: 8px; }
+  .desc { font-size: 13px; margin: 6px 0 10px; white-space: pre-wrap; }
+  .desc b { color: var(--muted); font-weight: 600; display: block; font-size: 12px;
+            text-transform: uppercase; letter-spacing: .04em; }
+  .empty { text-align: center; color: var(--muted); padding: 60px 0; border: 1px dashed var(--border);
+           border-radius: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>mcptax</h1>
+  <div class="sub" id="meta">Load a report to begin.</div>
+
+  <div class="toolbar">
+    <div class="toggle" id="toggle">
+      <button data-mode="original">Original</button>
+      <button data-mode="compressed" class="active">Compressed</button>
+    </div>
+    <input type="file" id="file" accept="application/json,.json" aria-label="Load report.json">
+  </div>
+
+  <section class="cards" id="cards"></section>
+  <div id="servers"></div>
+</main>
+
+<script>
+  let report = null;
+  let mode = "compressed";
+  const $ = (id) => document.getElementById(id);
+  const fmt = (n) => Number(n).toLocaleString();
+
+  function el(tag, props = {}, children = []) {
+    const node = document.createElement(tag);
+    Object.assign(node, props);
+    node.append(...children);
+    return node;
+  }
+
+  function serverCard(srv, maxOriginal) {
+    const tokens = mode === "original" ? srv.original_tokens : srv.compressed_tokens;
+    const width = Math.max(2, Math.round((100 * tokens) / maxOriginal));
+
+    const header = el("header", {}, [
+      el("h2", { textContent: srv.name }),
+      el("span", { className: "muted", textContent: `${fmt(tokens)} tokens` }),
+      el("span", { className: "pill", textContent: `${srv.savings_pct}% saved` }),
+    ]);
+    const bar = el("div", { className: "bar" + (mode === "original" ? " original" : "") },
+      [el("span", { style: `width:${width}%` })]);
+
+    const tools = srv.tools.map((t) => {
+      const shown = mode === "original" ? t.original_tokens : t.compressed_tokens;
+      return el("details", {}, [
+        el("summary", {}, [
+          el("span", { textContent: t.name }),
+          el("span", { className: "muted", textContent: `${fmt(shown)} tok · ${t.savings_pct}%` }),
+        ]),
+        el("div", { className: "desc" }, [
+          el("b", { textContent: "Original" }),
+          document.createTextNode(t.original_description || "(no description)"),
+          el("b", { textContent: "Compressed" }),
+          document.createTextNode(t.compressed_description || "(no description)"),
+        ]),
+      ]);
+    });
+
+    return el("section", { className: "server" }, [header, bar, ...tools]);
+  }
+
+  function render() {
+    document.querySelectorAll("#toggle button").forEach((b) =>
+      b.classList.toggle("active", b.dataset.mode === mode));
+
+    if (!report) {
+      $("servers").replaceChildren(el("div", { className: "empty",
+        textContent: "No report loaded. Run `mcptax run --out dashboard/report.json` and load it here." }));
+      $("cards").replaceChildren();
+      return;
+    }
+
+    const t = report.totals;
+    const cards = [
+      ["Servers", t.servers],
+      ["Tools", t.tools],
+      ["Tokens before", fmt(t.original_tokens)],
+      ["Tokens after", fmt(t.compressed_tokens)],
+      ["Saved", `${t.savings_pct}%`],
+    ];
+    $("cards").replaceChildren(...cards.map(([label, value]) =>
+      el("div", { className: "card" }, [
+        el("div", { className: "label", textContent: label }),
+        el("div", { className: "value", textContent: String(value) }),
+      ])));
+
+    $("meta").textContent =
+      `Compressor: ${report.compressor}${report.model ? " (" + report.model + ")" : ""} · ` +
+      `generated ${report.generated_at}`;
+
+    const maxOriginal = Math.max(1, ...report.servers.map((s) => s.original_tokens));
+    $("servers").replaceChildren(...report.servers.map((s) => serverCard(s, maxOriginal)));
+  }
+
+  function loadText(text) {
+    try {
+      report = JSON.parse(text);
+      render();
+    } catch (err) {
+      $("meta").textContent = "That file is not valid report JSON.";
+    }
+  }
+
+  document.querySelectorAll("#toggle button").forEach((b) =>
+    b.addEventListener("click", () => { mode = b.dataset.mode; render(); }));
+
+  $("file").addEventListener("change", (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => loadText(reader.result);
+    reader.readAsText(file);
+  });
+
+  // Auto-load report.json when served over HTTP (e.g. python -m http.server -d dashboard).
+  fetch("report.json")
+    .then((r) => (r.ok ? r.text() : null))
+    .then((text) => { if (text) loadText(text); })
+    .catch(() => {});
+
+  render();
+</script>
+</body>
+</html>
